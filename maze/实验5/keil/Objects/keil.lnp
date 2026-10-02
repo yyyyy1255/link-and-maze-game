@@ -1,3 +1,0 @@
-".\Objects\main.obj" 
-TO ".\Objects\keil" 
-PRINT(".\Listings\keil.m51")
