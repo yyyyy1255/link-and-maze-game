@@ -1,0 +1,3 @@
+".\Objects\main.obj" 
+TO ".\Objects\6" 
+PRINT(".\Listings\6.m51")

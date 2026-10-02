@@ -1,0 +1,95 @@
+BL51 BANKED LINKER/LOCATER V6.22.2.0                                                    06/18/2024  10:08:07  PAGE 1
+
+
+BL51 BANKED LINKER/LOCATER V6.22.2.0, INVOKED BY:
+D:\单片机\C51\BIN\BL51.EXE .\Objects\main.obj TO .\Objects\keil PRINT (.\Listings\keil.m51)
+
+
+MEMORY MODEL: SMALL
+
+
+INPUT MODULES INCLUDED:
+  .\Objects\main.obj (MAIN)
+  D:\单片机\C51\LIB\C51S.LIB (?C_STARTUP)
+  D:\单片机\C51\LIB\C51S.LIB (?C_INIT)
+
+
+LINK MAP OF MODULE:  .\Objects\keil (MAIN)
+
+
+            TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+            -----------------------------------------------------
+
+            * * * * * * *   D A T A   M E M O R Y   * * * * * * *
+            REG     0000H     0008H     ABSOLUTE     "REG BANK 0"
+            DATA    0008H     0001H     UNIT         ?DT?MAIN
+            IDATA   0009H     0001H     UNIT         ?STACK
+
+            * * * * * * *   C O D E   M E M O R Y   * * * * * * *
+            CODE    0000H     0003H     ABSOLUTE     
+            CODE    0003H     0004H     UNIT         ?C_INITSEG
+                    0007H     0004H                  *** GAP ***
+            CODE    000BH     0003H     ABSOLUTE     
+            CODE    000EH     008CH     UNIT         ?C_C51STARTUP
+            CODE    009AH     0017H     UNIT         ?PR?LED_FLASH?MAIN
+            CODE    00B1H     0010H     UNIT         ?PR?MAIN?MAIN
+
+
+
+OVERLAY MAP OF MODULE:   .\Objects\keil (MAIN)
+
+
+SEGMENT
+  +--> CALLED SEGMENT
+---------------------
+?C_C51STARTUP
+  +--> ?PR?MAIN?MAIN
+  +--> ?C_INITSEG
+
+
+
+SYMBOL TABLE OF MODULE:  .\Objects\keil (MAIN)
+
+  VALUE           TYPE          NAME
+  ----------------------------------
+
+  -------         MODULE        MAIN
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  D:00A0H         PUBLIC        P2
+  D:00A8H         PUBLIC        IE
+  C:009AH         PUBLIC        LED_Flash
+  C:00B1H         PUBLIC        main
+BL51 BANKED LINKER/LOCATER V6.22.2.0                                                  06/18/2024  10:08:07  PAGE 2
+
+
+  D:0089H         PUBLIC        TMOD
+  D:0008H         PUBLIC        T_Count
+  D:008CH         PUBLIC        TH0
+  D:008AH         PUBLIC        TL0
+  B:00A0H.0       PUBLIC        LED
+  B:0088H.4       PUBLIC        TR0
+  -------         PROC          MAIN
+  C:00B1H         LINE#         11
+  C:00B1H         LINE#         12
+  C:00B1H         LINE#         13
+  C:00B4H         LINE#         14
+  C:00B7H         LINE#         15
+  C:00BAH         LINE#         16
+  C:00BDH         LINE#         17
+  C:00BFH         LINE#         18
+  -------         ENDPROC       MAIN
+  -------         PROC          LED_FLASH
+  C:009AH         LINE#         21
+  C:009CH         LINE#         23
+  C:009FH         LINE#         24
+  C:00A2H         LINE#         25
+  C:00AAH         LINE#         26
+  C:00AAH         LINE#         27
+  C:00ACH         LINE#         28
+  C:00AEH         LINE#         29
+  C:00AEH         LINE#         30
+  -------         ENDPROC       LED_FLASH
+  -------         ENDMOD        MAIN
+
+Program Size: data=10.0 xdata=0 code=189
+LINK/LOCATE RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)
