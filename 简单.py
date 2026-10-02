@@ -1,0 +1,513 @@
+import sys  # 导入系统模块
+import math  # 导入数学模块
+import random  # 导入随机模块
+import pygame  # 导入 pygame 模块
+import subprocess  # 导入子进程模块
+
+# 定义颜色常量
+WHITE = (255, 255, 255)  # 白色
+GRAY = (128, 128, 128)  # 灰色
+LIGHT_BLUE = (173, 216, 230)  # 浅蓝色
+
+# 全局设置类
+class Settings:
+    def __init__(self):
+        self.screen_size = (self.screen_width, self.screen_height) = (400, 500)  # 游戏窗口大小
+        self.game_size = (self.game_row, self.game_col) = (4, 4)  # 游戏网格的行列数
+        self.map_total = self.game_row * self.game_col  # 游戏网格总数
+        self.element_num = 12  # 游戏中的元素数量
+        self.bg_color = (220, 220, 220)  # 背景颜色
+        self.title = '水果连连看'  # 游戏标题
+        self.win_image = './image/you_win.png'  # 胜利时显示的图片路径
+        self.grid_size = min(self.screen_width // self.game_col, self.screen_width // self.game_row)  # 每个网格的大小
+        padding = 10  # 填充大小
+        self.scale_size = (self.grid_size - padding, self.grid_size - padding)  # 缩放后的网格大小
+        self.points = []  # 初始化点的列表，用于存储游戏中的点
+
+# 创建全局设置对象
+settings = Settings()
+
+map_list = []  # 图像列表映射
+image_list = []  # 图像列表
+
+button_size = (50, 50)  # 定义统一的按钮大小
+
+# 图像按钮类
+class ImageBtn:
+    def __init__(self, screen, image_path, x, y, number, element, size, buffer=5):
+        self.x = x  # 按钮的 x 坐标
+        self.y = y  # 按钮的 y 坐标
+        self.buffer = buffer  # 按钮的点击区域缓冲区
+        self.active = False  # 按钮的激活状态
+        self.element = element  # 按钮的元素
+        self.number = number  # 按钮的编号
+        self.screen = screen  # 显示按钮的屏幕
+        self.image = pygame.image.load(image_path)  # 加载按钮的图像
+        self.w = size[0]  # 按钮的宽度
+        self.h = size[1]  # 按钮的高度
+        self.image = pygame.transform.scale(self.image, size)  # 缩放图像到指定大小
+        self.checked = False  # 按钮是否被选中
+
+    # 显示按钮
+    def display(self):
+        if self.checked:
+            pygame.draw.rect(self.image, (0, 205, 205, 255),  # 选中状态时绘制矩形边框
+                             (0, 0, self.image.get_width() - 1, self.image.get_height() - 1), 2)
+        else:
+            pygame.draw.rect(self.image, (0, 205, 205, 0),  # 未选中状态时不绘制矩形边框
+                             (0, 0, self.image.get_width() - 1, self.image.get_height() - 1), 2)
+        self.screen.blit(self.image, (self.x, self.y))  # 将图像绘制到屏幕上
+
+    # 隐藏按钮
+    def hide(self):
+        self.checked = False  # 取消选中状态
+        self.image.fill((255, 255, 240))  # 填充图像为浅黄色
+
+    # 判断按钮是否可被选中
+    def is_checkable(self):
+        return True
+
+    # 点击按钮
+    def click(self):
+        self.checked = not self.checked  # 切换选中状态
+        return self.checked
+
+    # 重置按钮
+    def reset(self):
+        self.checked = False  # 取消选中状态
+
+    # 获取按钮的几何信息
+    def get_geometry(self):
+        return self.x, self.y, self.w, self.h
+
+    # 获取按钮的中心点
+    def get_center(self):
+        return self.x + self.w / 2, self.y + self.h / 2
+
+# 水平扫描函数
+def horizontal_scan(points):
+    column = settings.game_col
+    p1_x = int(points[0].number % column)
+    p1_y = int(points[0].number / column)
+    p2_x = int(points[1].number % column)
+    p2_y = int(points[1].number / column)
+
+    if p1_y == p2_y:  # 如果在同一行，直接返回 False
+        return False
+
+    hLine1 = min(p1_y, p2_y)
+    hLine2 = max(p1_y, p2_y)
+    leftLimit = 0
+    rightLimit = column - 1
+
+    i = p1_x
+    while i > 0:
+        if map_list[p1_y * column + i - 1] != 0:
+            break
+        i -= 1
+    leftLimit = i
+
+    i = p2_x
+    while i > 0:
+        if map_list[p2_y * column + i - 1] != 0:
+            break
+        i -= 1
+    leftLimit = max(leftLimit, i)
+
+    if leftLimit == 0:
+        return True
+
+    i = p1_x
+    while i < column - 1:
+        if map_list[p1_y * column + i + 1] != 0:
+            break
+        i += 1
+    rightLimit = i
+
+    i = p2_x
+    while i < column - 1:
+        if map_list[p2_y * column + i + 1] != 0:
+            break
+        i += 1
+    rightLimit = min(rightLimit, i)
+
+    if rightLimit == column - 1:
+        return True
+
+    if leftLimit > rightLimit:
+        return False
+
+    for i in range(leftLimit, rightLimit + 1):
+        for j in range(hLine1 + 1, hLine2):
+            if map_list[j * column + i] != 0:
+                break
+        else:
+            return True
+
+    return False
+
+# 垂直扫描函数
+def vertical_scan(points):
+    row = settings.game_row
+    column = settings.game_col
+    p1_x = int(points[0].number % column)
+    p1_y = int(points[0].number / column)
+    p2_x = int(points[1].number % column)
+    p2_y = int(points[1].number / column)
+
+    if p1_x == p2_x:  # 如果在同一列，直接返回 False
+        return False
+
+    vLine1 = min(p1_x, p2_x)
+    vLine2 = max(p1_x, p2_x)
+    topLimit = 0
+    bottomLimit = row - 1
+
+    i = p1_y
+    while i > 0:
+        if map_list[p1_x + (i - 1) * column] != 0:
+            break
+        i -= 1
+    topLimit = i
+
+    i = p2_y
+    while i > 0:
+        if map_list[p2_x + (i - 1) * column] != 0:
+            break
+        i -= 1
+    topLimit = max(topLimit, i)
+
+    if topLimit == 0:
+        return True
+
+    i = p1_y
+    while i < row - 1:
+        if map_list[p1_x + (i + 1) * column] != 0:
+            break
+        i += 1
+    bottomLimit = i
+
+    i = p2_y
+    while i < row - 1:
+        if map_list[p2_x + (i + 1) * column] != 0:
+            break
+        i += 1
+    bottomLimit = min(bottomLimit, i)
+
+    if bottomLimit == row - 1:
+        return True
+
+    if topLimit > bottomLimit:
+        return False
+
+    for i in range(topLimit, bottomLimit + 1):
+        for j in range(vLine1 + 1, vLine2):
+            if map_list[i * column + j] != 0:
+                break
+        else:
+            return True
+
+    return False
+
+# 判断两个点是否可以消除
+def can_clear(points):
+    if points[0].element != points[1].element:  # 如果两个点的元素不相同，返回 False
+        return False
+    else:
+        if vertical_scan(points) or horizontal_scan(points):  # 如果垂直或水平扫描通过，返回 True
+            return True
+        else:
+            return False
+
+# 处理按钮点击事件
+def handle_button_click(btns, click_list):
+    global score
+    score += 10  # 增加分数
+    click_list[0].hide()  # 隐藏第一个按钮
+    click_list[1].hide()  # 隐藏第二个按钮
+
+    index1 = click_list[0].number
+    index2 = click_list[1].number
+    click_list = []
+    map_list[index1] = 0
+    map_list[index2] = 0
+    return click_list
+
+# 构建地图
+def build_map():
+    t_list = []
+    m_list = []
+    for i in range(0, settings.map_total, 2):
+        e = math.ceil(random.random() * settings.element_num)
+        t_list.append(e)
+        t_list.append(e)
+
+    for i in range(0, settings.map_total):
+        index = int(random.random() * (settings.map_total - i))
+        m_list.append(t_list[index])
+        t_list.pop(index)
+    return m_list
+
+# 判断游戏是否结束
+def is_over():
+    for each in map_list:
+        if each > 0:
+            return False
+    return True
+
+# 根据数字对文件排序
+def sort_file_by_numbers(filename):
+    with open(filename, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+        lines.sort(key=lambda x: float(x.strip()))
+    with open(filename, 'w', encoding='utf-8') as file:
+        file.writelines(lines)
+
+global screen  # 声明全局变量 screen
+
+# 重置游戏
+def reset_game():
+    global map_list, image_list, play, paused, start_ticks, last_update_time, remind_count, shuffle_count, paused_time
+    map_list = build_map()  # 构建地图
+    image_list = []  # 初始化图像列表
+    for i in range(0, settings.map_total):
+        x = int(i % settings.game_col) * settings.grid_size + (settings.grid_size - settings.scale_size[0]) / 2
+        y = int(i / settings.game_col) * settings.grid_size + (settings.grid_size - settings.scale_size[1]) / 2 + 100
+        element = './image/' + str(map_list[i]) + '.png'
+        image_list.append(ImageBtn(screen, element, x, y, i, map_list[i], settings.scale_size))
+    play = True
+    paused = False
+    start_ticks = pygame.time.get_ticks()  # 重置开始时间
+    last_update_time = start_ticks
+    paused_time = 0  # 重置暂停时间
+    remind_count = 0  # 初始化提示次数
+    shuffle_count = 0  # 初始化洗牌次数
+
+# 洗牌函数
+def shuffle_game():
+    global map_list, image_list
+    remaining_elements = [map_list[i] for i in range(len(map_list)) if map_list[i] != 0]
+    random.shuffle(remaining_elements)  # 洗牌打乱顺序
+    j = 0
+    for i in range(len(map_list)):
+        if map_list[i] != 0:
+            map_list[i] = remaining_elements[j]
+            j += 1
+    image_list = []
+    for i in range(0, settings.map_total):
+        x = int(i % settings.game_col) * settings.grid_size + (settings.grid_size - settings.scale_size[0]) / 2
+        y = int(i / settings.game_col) * settings.grid_size + (settings.grid_size - settings.scale_size[1]) / 2 + 100
+        if map_list[i] != 0:
+            element = './image/' + str(map_list[i]) + '.png'
+            image_list.append(ImageBtn(screen, element, x, y, i, map_list[i], settings.scale_size))
+    print("洗牌已完成")
+
+# 查找可以消除的一对
+def find_pair_to_clear():
+    for i in range(len(image_list)):
+        for j in range(i + 1, len(image_list)):
+            if map_list[image_list[i].number] != 0 and map_list[image_list[j].number] != 0:
+                points = [image_list[i], image_list[j]]
+                if points[0].element == points[1].element and can_clear(points):
+                    return points
+    return None
+
+# 显示胜利画面
+def display_win_screen(screen, seconds, remind_count, shuffle_count):
+    font = pygame.font.SysFont('SimHei', 24)  # 创建字体对象
+    youwin = pygame.image.load(settings.win_image)  # 加载胜利图像
+    youwin = pygame.transform.scale(youwin, (settings.screen_width, settings.screen_height))  # 缩放图像
+    screen.blit(youwin, (0, 0))  # 绘制图像到屏幕上
+
+    # 调整文字的位置
+    text1 = font.render(f'通关时间:', True, (0, 0, 0))
+    win_text = font.render(f'{seconds:.2f} 秒', True, (0, 0, 0))
+    text2 = font.render(f'次数: ', True, (0, 0, 0))
+    remind_text = font.render(f' {remind_count}', True, (0, 0, 0))
+    shuffle_text = font.render(f' {shuffle_count}', True, (0, 0, 0))
+
+    screen.blit(text1, (settings.screen_width // 2 + 60, 120))
+    screen.blit(win_text, (settings.screen_width // 2 + 60, 150))
+    screen.blit(text2, (settings.screen_width // 2 + 80, 200))
+    screen.blit(remind_text, (settings.screen_width // 2 + 90, 240))
+    screen.blit(shuffle_text, (settings.screen_width // 2 + 90, 320))
+
+    pygame.display.update()  # 更新屏幕显示
+
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+            if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                waiting = False
+
+# 主函数
+def main():
+    global screen, score, paused, start_ticks, last_update_time, play, map_list, image_list, paused_time, remind_count, shuffle_count
+    pygame.init()  # 初始化 pygame
+    screen = pygame.display.set_mode(settings.screen_size)  # 设置游戏窗口大小
+    pygame.display.set_caption(settings.title)  # 设置窗口标题
+    font = pygame.font.SysFont('SimHei', 24)  # 创建字体对象
+    game_over_font = pygame.font.SysFont('SimHei', 48)  # 增大字体大小
+    total_time = 60.0  # 总时间（秒）
+
+    paused = False  # 初始化暂停状态
+    paused_time = 0  # 初始化暂停时间
+    score = 0  # 初始化分数
+    play = True  # 初始化游戏状态
+    game_over = False  # 初始化游戏结束状态
+    remind_count = 0  # 初始化提示次数
+    shuffle_count = 0  # 初始化洗牌次数
+
+    reset_game()  # 重置游戏
+
+    # 定义按钮
+    pause_button = ImageBtn(screen, './image/18.png', 10, 40, 0, 'pause', (80, 50), buffer=30)
+    remind_button = ImageBtn(screen, './image/16.png', 100, 40, 0, 'remind', (90, 50), buffer=30)
+    shuffle_button = ImageBtn(screen, './image/17.png', 190, 40, 2, 'restart', (80, 50), buffer=30)
+    quit_button = ImageBtn(screen, './image/15.png', 280, 40, 1, 'quit', (80, 50), buffer=30)
+    home_button = ImageBtn(screen, './image/19.png', 360, 5, 3, 'home', (40, 40), buffer=30)
+    restart_button = ImageBtn(screen, './image/20.png', 360, 45, 3, 'home', (45, 45), buffer=30)
+    running = True  # 添加运行标志
+
+    while running:
+        for event in pygame.event.get():  # 处理事件
+            if event.type == pygame.QUIT:
+                running = False  # 设置运行标志为 False
+                break  # 跳出事件循环
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                print(mouse_pos)
+                if 2 < mouse_pos[0] < 92 and 35 < mouse_pos[1] < 92:
+                    paused = not paused
+                    if paused:
+                        paused_start_ticks = pygame.time.get_ticks()
+                    else:
+                        paused_end_ticks = pygame.time.get_ticks()
+                        paused_time += paused_end_ticks - paused_start_ticks
+                    print("暂停按钮已被点击")
+                elif 100 < mouse_pos[0] < 185 and 35 < mouse_pos[1] < 92:
+                    print("提示按钮已被点击")
+                    remind_count += 1  # 增加提示次数
+                    points = find_pair_to_clear()
+                    if points:
+                        pygame.draw.line(screen, (255, 0, 0), points[0].get_center(), points[1].get_center(), 5)
+                        pygame.display.update()
+                        pygame.time.wait(300)
+                        handle_button_click(image_list, points)
+                elif 195 < mouse_pos[0] < 270 and 35 < mouse_pos[1] < 92:
+                    print("洗牌按钮已被点击")
+                    shuffle_game()
+                    shuffle_count += 1  # 增加洗牌次数
+                elif 280 < mouse_pos[0] < 355 and 35 < mouse_pos[1] < 92:
+                    print("退出按钮已被点击")
+                    running = False  # 设置运行标志为 False
+                    break  # 跳出事件循环
+                elif 360 < mouse_pos[0] < 400 and 5 < mouse_pos[1] < 45:
+                    print("主页按钮已被点击")
+                    pygame.quit()  # 退出当前Pygame窗口
+                    subprocess.Popen(["python", "UI.py"])  # 重新打开UI窗口
+                    return  # 确保不再执行Pygame相关操作
+                elif 360 < mouse_pos[0] < 400 and 50 < mouse_pos[1] < 80:
+                    print("重新开始按钮已被点击")
+                    reset_game()
+                else:
+                    for btn in image_list:
+                        geo = btn.get_geometry()
+                        x = geo[0]
+                        y = geo[1]
+                        w = geo[2]
+                        h = geo[3]
+                        if x < mouse_pos[0] < x + w and y < mouse_pos[1] < y + h:
+                            if btn.is_checkable():
+                                if not btn.click():
+                                    settings.points.clear()
+                                    break
+                                if settings.points:
+                                    settings.points.append(btn)
+                                    if can_clear(settings.points):
+                                        pygame.draw.line(screen, (255, 0, 0), settings.points[0].get_center(), settings.points[1].get_center(), 5)
+                                        pygame.display.update()
+                                        pygame.time.wait(100)
+                                        for point in settings.points:
+                                            map_list[point.number] = 0
+                                            point.number = 0
+                                            point.hide()
+                                    else:
+                                        for point in settings.points:
+                                            point.reset()
+                                    settings.points.clear()
+                                else:
+                                    settings.points.append(btn)
+                            else:
+                                settings.points = []
+
+        if not running:  # 检查运行标志
+            break  # 跳出主循环
+
+        screen.fill((255, 255, 255))  # 填充屏幕背景色
+
+        # 绘制网格背景
+        for i in range(settings.game_row):
+            for j in range(settings.game_col):
+                rect = pygame.Rect(j * settings.grid_size, i * settings.grid_size + 100, settings.grid_size, settings.grid_size)
+                pygame.draw.rect(screen, LIGHT_BLUE, rect, 1)
+
+        # 显示按钮
+        pause_button.display()
+        remind_button.display()
+        shuffle_button.display()
+        quit_button.display()
+        home_button.display()
+        restart_button.display()
+
+        if play:
+            if not paused:
+                current_ticks = pygame.time.get_ticks()
+                seconds = (current_ticks - start_ticks - paused_time) / 1000
+                last_update_time = current_ticks
+            else:
+                seconds = (last_update_time - start_ticks - paused_time) / 1000
+
+            timer_surface1 = font.render('计时器:' + str(seconds), True, (0, 0, 0))
+            screen.blit(timer_surface1, (200, 10))
+            seconds_left = total_time - seconds
+            timer_surface2 = font.render('剩余时间:' + str(int(seconds_left)), True, (0, 0, 0))
+            screen.blit(timer_surface2, (10, 10))
+            if seconds_left <= 0:
+                play = False
+                game_over = True
+            if is_over():
+                print("通关时间：", seconds, "秒")
+                print("提示次数：", remind_count)
+                print("洗牌次数：", shuffle_count)
+                with open('简单排行榜.txt', 'a') as f:
+                    f.write(str(seconds) + '\n')
+                sort_file_by_numbers("简单排行榜.txt")
+                play = False
+                display_win_screen(screen, seconds, remind_count, shuffle_count)
+            else:
+                for im in image_list:
+                    im.display()
+        else:
+            if game_over:
+                screen.fill(WHITE, (0, 100, settings.screen_width, settings.screen_height - 100))
+                game_over_surface = game_over_font.render('游戏失败', True, (255, 0, 0))
+                screen.blit(game_over_surface, (100, 130))
+                d_surface = font.render('请点击重开按钮重新开始', True, (0, 0, 0))
+                screen.blit(d_surface, (60, 200))
+                e_surface = font.render('或点击主页按钮更改难度', True, (0, 0, 0))
+                screen.blit(e_surface, (60, 230))
+
+        if paused:
+            paused_surface = font.render('游戏暂停', True, (255, 0, 0))
+            screen.blit(paused_surface, (150, 90))
+        pygame.display.update()  # 更新屏幕显示
+
+    pygame.quit()  # 退出 pygame
+    sys.exit()  # 退出系统
+
+if __name__ == "__main__":
+    main()  # 运行主函数
